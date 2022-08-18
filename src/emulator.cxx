@@ -3,6 +3,7 @@
 #include <SDL2/SDL.h>
 
 #include "../include/emulator.hxx"
+#include "../include/chip8.hxx"
 
 Emulator::Emulator(std::string title, int width, int height) : window{}, surface{}, event{}, is_running{false} {
     if(SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -28,6 +29,12 @@ void Emulator::run() {
     is_running = true;
     uint8_t i = 0;
 
+    std::vector<uint8_t> program{};
+
+    Chip8 chip8;
+    chip8.load(program);
+    std::thread chip8_thread{&Chip8::run, chip8};
+    
     while(is_running) {
         if(SDL_PollEvent(&event)) {
             switch(event.type) {
