@@ -15,4 +15,5 @@ set(HOMEBREW_DIR /opt/homebrew)
 include_directories(${HOMEBREW_DIR}/include)
 link_directories(${HOMEBREW_DIR}/lib)
 
-add_executable(emulator src/main.cxx)
+add_executable(emulator src/main.cxx src/emulator.cxx)
+target_link_libraries(emulator SDL2)
