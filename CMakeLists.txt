@@ -11,9 +11,7 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -std=c++17")
 # set the build type
 set(CMAKE_BUILD_TYPE Release)
 
-set(HOMEBREW_DIR /opt/homebrew)
-include_directories(${HOMEBREW_DIR}/include)
-link_directories(${HOMEBREW_DIR}/lib)
+include_directories(/opt/homebrew/include)
 
 add_executable(emulator src/main.cxx src/emulator.cxx src/chip8.cxx)
 target_link_libraries(emulator SDL2)
