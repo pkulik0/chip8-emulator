@@ -9,7 +9,7 @@
 
 Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}, sound_timer{}, pc{}, framebuffer{} {
     srand(time(0));
-    memory[0x1FF] = 2;
+    memory[0x1FF] = 3;
 
     for(size_t i = 0; i < font.size(); i++) {
         memory[0xF0+i] = font[i];
@@ -121,28 +121,29 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                     break;
                 }
                 case 0x4: {
-                    registers[reg_x] += registers[reg_y];
-                    // overflow check
+                    uint16_t result = registers[reg_x] + registers[reg_y];
+                    registers[reg_x] = result;
+                    registers[0xF] = result > 255;
                     break;
                 }
                 case 0x5: {
                     registers[reg_x] -= registers[reg_y];
-                    // same here
+                    registers[0xF] = registers[reg_x] > registers[reg_y];
                     break;
                 }
                 case 0x7: {
                     registers[reg_y] -= registers[reg_x];
-                    // same here
+                    registers[0xF] = registers[reg_y] > registers[reg_x];
                     break;
                 }
                 case 0x6: {
-                    registers[0xF] = registers[reg_x] & 1;
-                    registers[reg_x] = registers[reg_x] >> 1;
+                    registers[0xF] = registers[reg_y] & 1;
+                    registers[reg_x] = registers[reg_y] >> 1;
                     break;
                 }
                 case 0xE: {
-                    registers[0xF] = registers[reg_x] >> 7;
-                    registers[reg_x] = registers[reg_x] << 1;
+                    registers[0xF] = registers[reg_y] & (1 << 7);
+                    registers[reg_x] = registers[reg_y] << 1;
                     break;
                 }
             }
@@ -227,6 +228,7 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                     break;
                 }
                 case 0x29: {
+                    std::cout << "letter" << std::endl;
                     index_register = memory[0xF0 + registers[reg_x]*0x05];
                     break;
                 }
@@ -269,7 +271,7 @@ void Chip8::step() {
 void Chip8::run() {
     std::cout << "Chip8 started!" << std::endl;
 
-    const int steps = 39;
+    const int steps = 2000;
     for(auto i = 0; i < steps; i++) {
         step();
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

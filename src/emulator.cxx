@@ -48,10 +48,11 @@ std::vector<uint8_t> Emulator::read_binary(std::string& filename) {
 
 void Emulator::run(std::string filename) {
     std::vector<uint8_t> program = read_binary(filename);
-    
+
     Chip8 chip8;
     chip8.load(program);
     // std::thread chip8_thread{&Chip8::run, chip8};
+    chip8.run();
 
     SDL_Event event;
     is_running = true;
