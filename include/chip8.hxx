@@ -16,8 +16,6 @@
 #define CH8_PC_START 0x200
 #define CH8_PC_STEP 2
 
-#define CH8_CPU_FREQ 500
-
 typedef std::array<uint8_t, CH8_MEMORY_SIZE> Memory;
 typedef std::array<uint8_t, CH8_REG_NUM> RegArray;
 typedef std::array<uint8_t, CH8_SCREEN_SIZE> Framebuffer;
