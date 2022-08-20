@@ -4,22 +4,74 @@
 #include <thread>
 #include <chrono>
 
+#include <SDL2/SDL_keyboard.h>
+
 #include "../include/chip8.hxx"
 #include "../include/font.hxx"
 
-Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}, sound_timer{}, pc{}, framebuffer{} {
+Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}, sound_timer{}, framebuffer{}, pc{}, keyboard{}, fb_modified{true} {
     srand(time(0));
-    memory[0x1FF] = 3;
-
     for(size_t i = 0; i < font.size(); i++) {
-        memory[0xF0+i] = font[i];
+        memory[CH8_FONT_ADDR+i] = font[i];
     }
+    
+    memory[0x1FF] = 5; // TEST SUITE VALUE
 }
 
 Chip8::~Chip8() {}
 
-inline void Chip8::reset_pc() {
-    pc = CH8_PC_START;
+uint8_t Chip8::sdl_scancode_to_key(uint16_t scancode) {
+    switch(scancode) {
+        case SDL_SCANCODE_1: {
+            return 0x1;
+        }
+        case SDL_SCANCODE_2: {
+            return 0x2;
+        }
+        case SDL_SCANCODE_3: {
+            return 0x3;
+        }
+        case SDL_SCANCODE_4: {
+            return 0xC;
+        }
+        case SDL_SCANCODE_Q: {
+            return 0x4;
+        }
+        case SDL_SCANCODE_W: {
+            return 0x5;
+        }
+        case SDL_SCANCODE_E: {
+            return 0x6;
+        }
+        case SDL_SCANCODE_R: {
+            return 0xD;
+        }
+        case SDL_SCANCODE_A: {
+            return 0x7;
+        }
+        case SDL_SCANCODE_S: {
+            return 0x8;
+        }
+        case SDL_SCANCODE_D: {
+            return 0x9;
+        }
+        case SDL_SCANCODE_F: {
+            return 0xE;
+        }
+        case SDL_SCANCODE_Z: {
+            return 0xA;
+        }
+        case SDL_SCANCODE_X: {
+            return 0x0;
+        }
+        case SDL_SCANCODE_C: {
+            return 0xB;
+        }
+        case SDL_SCANCODE_V: {
+            return 0xF;
+        }
+    }
+    return 0xFF;
 }
 
 inline void Chip8::increment_pc() {
@@ -27,7 +79,7 @@ inline void Chip8::increment_pc() {
 }
 
 void Chip8::load(std::vector<uint8_t>& program) {
-    reset_pc();
+    pc = CH8_PC_START;
 
     for(size_t i = 0; i < program.size(); i++) {
         memory[CH8_PC_START+i] = program[i];
@@ -40,8 +92,36 @@ void Chip8::clear_fb() {
     }
 }
 
+void* Chip8::get_fb() {
+    return &framebuffer.__elems_;
+}
+
+void Chip8::set_key(uint8_t key, bool status) {
+    keyboard[key] = status;
+}
+
 uint16_t Chip8::fetch_instruction() {
     return (memory[pc] << 8) | memory[pc+1];
+}
+
+bool Chip8::step() {
+    auto ins = fetch_instruction();
+    increment_pc();
+    decode_instruction(ins);
+    return pc >= CH8_MEMORY_SIZE;
+}
+
+void Chip8::run() {
+    std::cout << "Chip8 started!" << std::endl;
+
+    while(pc < CH8_MEMORY_SIZE) {
+        step();
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1'000'000'000 / 500));
+    }
+}
+
+void Chip8::pause() {
+
 }
 
 void Chip8::decode_instruction(uint16_t& instruction) {
@@ -122,28 +202,33 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                 }
                 case 0x4: {
                     uint16_t result = registers[reg_x] + registers[reg_y];
+                    bool flag = result > 0xFF;
                     registers[reg_x] = result;
-                    registers[0xF] = result > 255;
+                    registers[CH8_FLAG_REG] = flag;
                     break;
                 }
                 case 0x5: {
+                    bool flag = registers[reg_x] >= registers[reg_y];
                     registers[reg_x] -= registers[reg_y];
-                    registers[0xF] = registers[reg_x] > registers[reg_y];
+                    registers[CH8_FLAG_REG] = flag;
                     break;
                 }
                 case 0x7: {
-                    registers[reg_y] -= registers[reg_x];
-                    registers[0xF] = registers[reg_y] > registers[reg_x];
+                    bool flag =  registers[reg_y] >= registers[reg_x];
+                    registers[reg_x] = registers[reg_y] - registers[reg_x];
+                    registers[CH8_FLAG_REG] = flag;
                     break;
                 }
                 case 0x6: {
-                    registers[0xF] = registers[reg_y] & 1;
+                    bool flag = registers[reg_y] & 1;
                     registers[reg_x] = registers[reg_y] >> 1;
+                    registers[CH8_FLAG_REG] = flag;
                     break;
                 }
                 case 0xE: {
-                    registers[0xF] = registers[reg_y] & (1 << 7);
-                    registers[reg_x] = registers[reg_y] << 1;
+                    bool flag = registers[reg_x] >> 7;
+                    registers[reg_x] = registers[reg_x] << 1;
+                    registers[CH8_FLAG_REG] = flag;
                     break;
                 }
             }
@@ -168,6 +253,8 @@ void Chip8::decode_instruction(uint16_t& instruction) {
             break;
         }
         case 0xD: {
+            fb_modified = true;
+
             uint8_t x = registers[reg_x];
             uint8_t y = registers[reg_y];
             uint8_t height = value4;
@@ -182,7 +269,7 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                         auto position = column + row * CH8_SCREEN_WIDTH;
                         if(framebuffer[position] == CH8_SCREEN_COLOR) {
                             framebuffer[position] = CH8_SCREEN_COLOR_2;
-                            registers[0xF] = true;
+                            registers[CH8_FLAG_REG] = true;
                         } else {
                             framebuffer[position] = CH8_SCREEN_COLOR;
                         }
@@ -194,11 +281,15 @@ void Chip8::decode_instruction(uint16_t& instruction) {
         case 0xE: {
             switch(value8) {
                 case 0x9E: {
-                    // key pressed
+                    if(keyboard[registers[reg_x]]) {
+                        increment_pc();
+                    }
                     break;
                 }
                 case 0xA1: {
-                    // key not pressed
+                    if(!keyboard[registers[reg_x]]) {
+                        increment_pc();
+                    }
                     break;
                 }
             }
@@ -211,8 +302,17 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                     break;
                 }
                 case 0x0A: {
-                    // block
-                    pc -= CH8_PC_STEP;
+                    bool key_pressed = false;
+                    for(size_t i = 0; i < keyboard.size(); i++) {
+                        if(keyboard[i]) {
+                            key_pressed = true;
+                            registers[reg_x] = i;
+                            break;
+                        }
+                    }
+                    if(!key_pressed) {
+                        pc -= CH8_PC_STEP;
+                    }
                     break;
                 }
                 case 0x15: {
@@ -224,12 +324,12 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                     break;
                 }
                 case 0x1E: {
-                    index_register = registers[reg_x];
+                    index_register += registers[reg_x];
                     break;
                 }
                 case 0x29: {
-                    std::cout << "letter" << std::endl;
-                    index_register = memory[0xF0 + registers[reg_x]*0x05];
+                    auto location = registers[reg_x] & 0xF;
+                    index_register = memory[CH8_FONT_ADDR + location];
                     break;
                 }
                 case 0x33: {
@@ -256,28 +356,7 @@ void Chip8::decode_instruction(uint16_t& instruction) {
             break;
         }
         default: {
-            printf("\tunknown instruction: %x, full: %x\n", instruction_type, instruction);
             break;
         }
     }
-}
-
-void Chip8::step() {
-    auto ins = fetch_instruction();
-    increment_pc();
-    decode_instruction(ins);
-}
-
-void Chip8::run() {
-    std::cout << "Chip8 started!" << std::endl;
-
-    const int steps = 2000;
-    for(auto i = 0; i < steps; i++) {
-        step();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-}
-
-void Chip8::pause() {
-
 }

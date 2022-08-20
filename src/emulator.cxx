@@ -32,6 +32,7 @@ Emulator::Emulator(std::string title, int width, int height) : window{}, rendere
 }
 
 Emulator::~Emulator() {
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyTexture(texture);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -49,39 +50,48 @@ std::vector<uint8_t> Emulator::read_binary(std::string& filename) {
 void Emulator::run(std::string filename) {
     std::vector<uint8_t> program = read_binary(filename);
 
-    Chip8 chip8;
-    chip8.load(program);
-    // std::thread chip8_thread{&Chip8::run, chip8};
-    chip8.run();
+    Chip8* chip8 = new Chip8;
+    chip8->load(program);
 
     SDL_Event event;
     is_running = true;
 
-    size_t steps = 0;
     while(is_running) {
-        if(SDL_PollEvent(&event)) {
+        chip8->step();
+
+        while(SDL_PollEvent(&event)) {
             switch(event.type) {
-                case SDL_QUIT:
+                case SDL_QUIT: {
                     is_running = false;
                     break;
-                case SDL_KEYDOWN:
-                    std::cout << "Step " << steps++ << std::endl;
-                    chip8.step();
+                }
+                case SDL_KEYDOWN: {
+                    auto key = Chip8::sdl_scancode_to_key(event.key.keysym.scancode);
+                    if(key != 0xFF) chip8->set_key(key, true);
                     break;
+                }
+                case SDL_KEYUP: {
+                    auto key = Chip8::sdl_scancode_to_key(event.key.keysym.scancode);
+                    if(key != 0xFF) chip8->set_key(key, false);
+                    break;
+                }
                 default:
                     break;
             }
         }
 
-        auto c = CH8_SCREEN_COLOR_2
-        SDL_SetRenderDrawColor(renderer, c, c, c, 0xFF);
-        SDL_RenderClear(renderer);
+        if(chip8->fb_modified) {
+            auto c = CH8_SCREEN_COLOR_2
+            SDL_SetRenderDrawColor(renderer, c, c, c, 0xFF);
+            SDL_RenderClear(renderer);
 
-        SDL_UpdateTexture(texture, nullptr, chip8.framebuffer.__elems_, CH8_SCREEN_WIDTH);
-        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+            SDL_UpdateTexture(texture, nullptr, chip8->get_fb(), CH8_SCREEN_WIDTH);
+            SDL_RenderCopy(renderer, texture, nullptr, nullptr);
 
-        SDL_RenderPresent(renderer);
+            SDL_RenderPresent(renderer);
+            chip8->fb_modified = false;
+        }
 
-        SDL_Delay(16);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
