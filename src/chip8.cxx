@@ -2,11 +2,16 @@
 #include <chrono>
 #include <bitset>
 
-#include "include/chip8.hxx"
-#include "include/constants.hxx"
+#include "../include/chip8.hxx"
 
-Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}, sound_timer{}, framebuffer{}, fb_modified{true}, pc{}, keyboard{} {
-    srand(time(0));
+const std::unordered_map<uint8_t, uint8_t> Chip8::keymap {
+        {30, 0x1}, {31, 0x2}, {32, 0x3}, {33, 0xC}, // 1 2 3 4
+        {20, 0x4}, {26, 0x5}, {8,  0x6}, {21, 0xD}, // Q W E R
+        {4,  0x7}, {22, 0x8}, {7,  0x9}, {9,  0xE}, // A S D F
+        {29, 0xA}, {27, 0x0}, {6,  0xB}, {25, 0xF}  // Z X C V
+};
+
+Chip8::Chip8() : index_register{}, reg{}, memory{}, stack{}, delay_timer{}, sound_timer{}, timer_count{}, framebuffer{}, fb_modified{true}, pc{}, keyboard{}, is_beeping{} {
     for(size_t i = 0; i < font.size(); i++) {
         memory[CH8_FONT_ADDR+i] = font[i];
     }
@@ -22,20 +27,18 @@ void Chip8::load(const std::vector<uint8_t>& bytecode) {
 
 void Chip8::clear_fb() {
     for(size_t addr = 0; addr < framebuffer.size(); addr++) {
-        framebuffer[addr] = CH8_SCREEN_COLOR_2;
+        framebuffer[addr] = CH8_SCREEN_COLOR_OFF;
     }
 }
 
 void* Chip8::get_fb() {
-    if(!fb_modified) {
-        return nullptr;
-    }
+    if(!fb_modified) return nullptr;
 
     fb_modified = false;
     return &framebuffer.__elems_;
 }
 
-void Chip8::set_key(const uint8_t& scancode, const bool& status) {
+void Chip8::set_key(const uint8_t scancode, const bool status) {
     auto key = keymap.find(scancode);
     if(key != keymap.end()) {
         keyboard[key->second] = status;
@@ -50,245 +53,196 @@ inline void Chip8::increment_pc() {
     pc += CH8_PC_STEP;
 }
 
+void Chip8::handle_timers() {
+    if(timer_count++ == CH8_CPU_FREQUENCY/CH8_TIMER_FREQUENCY) {    
+        if(sound_timer > 0) is_beeping = --sound_timer > 0;
+        if(delay_timer > 0) delay_timer--;
+        timer_count = 0; 
+    }
+}
+
 bool Chip8::step() {
-    auto ins = fetch_instruction();
+    handle_timers();
+
+    uint16_t ins = fetch_instruction();
     increment_pc();
     decode_instruction(ins);
+    
     return pc < CH8_MEMORY_SIZE;
 }
 
-void Chip8::decode_instruction(const uint16_t& instruction) {
-    uint8_t instruction_type = instruction >> 12;
+void Chip8::draw_sprite(const uint8_t x, const uint8_t y, const uint8_t height, const uint16_t sprite_addr) {
+    for(auto i = 0; i < height; i++) {
+        uint8_t row = (y+i) % CH8_SCREEN_HEIGHT;
+        // Iterate over individual bits in the sprite, starting from LE
+        std::bitset<8> sprite = memory[sprite_addr+i];
+        for(auto j = 0; j < 8; j++) {
+            if(sprite[7-j]) {
+                uint8_t column = (x+j) % CH8_SCREEN_WIDTH;
+                uint16_t position = column + row * CH8_SCREEN_WIDTH;
 
-    uint8_t reg_x = (instruction >> 8) & 0xF;
-    uint8_t reg_y = (instruction >> 4) & 0xF;
-
-    uint16_t value12 = instruction & 0xFFF;
-    uint8_t  value8  = instruction & 0xFF;
-    uint8_t  value4  = instruction & 0xF;
-
-    switch(instruction_type) {
-        case 0x0: {
-            switch(value8) {
-                case 0xE0: {
-                    clear_fb();
-                    break;
+                // Flip the pixel's color, set the flag register if the pixel has been deactivated.
+                if(framebuffer[position] == CH8_SCREEN_COLOR_ON) {
+                    framebuffer[position] = CH8_SCREEN_COLOR_OFF;
+                    reg[CH8_FLAG] = true;
+                } else {
+                    framebuffer[position] = CH8_SCREEN_COLOR_ON;
                 }
-                case 0xEE: {
+            }
+        }
+     }
+    fb_modified = true;
+}
+
+void Chip8::decode_instruction(const uint16_t ins) {
+    // 0x1000 - Primary instruction type
+    uint8_t type = ins >> 12;
+
+    // 0x0100 - First register[x]
+    uint8_t x = (ins >> 8) & 0xF;
+    // 0x0010 - Second register[y]
+    uint8_t y = (ins >> 4) & 0xF;
+
+    // 0x0001 - 1 byte operand OR secondary instruction type
+    uint8_t  nibble = ins & 0xF;
+    // 0x0110 - 2 byte operand OR secondary instruction type
+    uint8_t  byte   = ins & 0xFF;
+    // 0x0111 - 3 byte operand
+    uint16_t addr   = ins & 0xFFF;
+   
+    switch(type) {
+        case 0x0:
+            switch(byte) {
+                case 0xE0:
+                    clear_fb(); break;
+                case 0xEE:
                     pc = stack.top();
                     stack.pop();
                     break;
-                }
             }
             break;
-        }
-        case 0x2: {
-            stack.push(pc);
-        }
-        case 0x1: {
-            pc = value12;
+        case 0x2:
+            stack.push(pc); [[fallthrough]];
+        case 0x1:
+            pc = addr; break;
+        case 0x3:
+            if(reg[x] == byte) increment_pc(); break;
+        case 0x4:
+            if(reg[x] != byte) increment_pc(); break;
+        case 0x5:
+            if(reg[x] == reg[y]) increment_pc();
             break;
-        }
-        case 0x3: {
-            if(registers[reg_x] == value8) {
-                increment_pc();
-            }
-            break;
-        }
-        case 0x4: {
-            if(registers[reg_x] != value8) {
-                increment_pc();
-            }
-            break;
-        }
-        case 0x5: {
-            if(registers[reg_x] == registers[reg_y]) {
-                increment_pc();
-            }
-            break;
-        }
-        case 0x6: {
-            registers[reg_x] = value8;
-            break;
-        }
-        case 0x7: {
-            registers[reg_x] += value8;
-            break;
-        }
-        case 0x8: {
-            switch(value4) {
-                case 0x0: {
-                    registers[reg_x] = registers[reg_y];
-                    break;
-                }
-                case 0x1: {
-                    registers[reg_x] |= registers[reg_y];
-                    break;
-                }
-                case 0x2: {
-                    registers[reg_x] &= registers[reg_y];
-                    break;
-                }
-                case 0x3: {
-                    registers[reg_x] ^= registers[reg_y];
-                    break;
-                }
+        case 0x6:
+            reg[x] = byte; break;
+        case 0x7:
+            reg[x] += byte; break;
+        case 0x8:
+            switch(nibble) {
+                case 0x0:
+                    reg[x] = reg[y]; break;
+                case 0x1:
+                    reg[x] |= reg[y]; break;
+                case 0x2: 
+                    reg[x] &= reg[y]; break;
+                case 0x3:
+                    reg[x] ^= reg[y]; break;
                 case 0x4: {
-                    uint16_t result = registers[reg_x] + registers[reg_y];
-                    bool flag = result > 0xFF; // check for overflow
-                    registers[reg_x] = result;
-                    registers[CH8_REG_SIZE-1] = flag;
+                    uint16_t result = reg[x] + reg[y];
+                    reg[CH8_FLAG] = result > UINT8_MAX;
+                    reg[x] = result;
                     break;
                 }
                 case 0x5: {
-                    bool flag = registers[reg_x] >= registers[reg_y];
-                    registers[reg_x] -= registers[reg_y];
-                    registers[CH8_REG_SIZE-1] = flag;
+                    bool flag = reg[x] >= reg[y];
+                    reg[x] -= reg[y];
+                    reg[CH8_FLAG] = flag;
                     break;
                 }
                 case 0x7: {
-                    bool flag =  registers[reg_y] >= registers[reg_x];
-                    registers[reg_x] = registers[reg_y] - registers[reg_x];
-                    registers[CH8_REG_SIZE-1] = flag;
+                    bool flag =  reg[y] >= reg[x];
+                    reg[x] = reg[y] - reg[x];
+                    reg[CH8_FLAG] = flag;
                     break;
                 }
                 case 0x6: {
-                    bool flag = registers[reg_y] & 1;
-                    registers[reg_x] = registers[reg_y] >> 1;
-                    registers[CH8_REG_SIZE-1] = flag;
+                    bool flag = reg[y] & 1;
+                    reg[x] = reg[y] >> 1;
+                    reg[CH8_FLAG] = flag;
                     break;
                 }
                 case 0xE: {
-                    bool flag = registers[reg_x] >> 7;
-                    registers[reg_x] = registers[reg_x] << 1;
-                    registers[CH8_REG_SIZE-1] = flag;
+                    bool flag = reg[x] >> 7;
+                    reg[x] = reg[x] << 1;
+                    reg[CH8_FLAG] = flag;
                     break;
                 }
             }
             break;
-        }
-        case 0x9: {
-            if(registers[reg_x] != registers[reg_y]) {
-                increment_pc();
+        case 0x9:
+            if(reg[x] != reg[y]) increment_pc(); break;
+        case 0xA:
+            index_register = addr; break;
+        case 0xB:
+            pc = addr + reg[0]; break;
+        case 0xC:
+            reg[x] = rand() & byte; break;
+        case 0xD:
+            draw_sprite(reg[x], reg[y], nibble, index_register); break;
+        case 0xE:
+            switch(byte) {
+                case 0x9E:
+                    if(keyboard[reg[x]]) increment_pc(); break;
+                case 0xA1:
+                    if(!keyboard[reg[x]]) increment_pc(); break;
             }
             break;
-        }
-        case 0xA: {
-            index_register = value12;
-            break;
-        }
-        case 0xB: {
-            pc = value12 + registers[0];
-            break;
-        }
-        case 0xC: {
-            registers[reg_x] = rand() & value8;
-            break;
-        }
-        case 0xD: {
-            uint8_t x = registers[reg_x];
-            uint8_t y = registers[reg_y];
-            uint8_t height = value4;
-            uint16_t sprite_addr = index_register;
-
-            for(auto i = 0; i < height; i++) {
-                std::bitset<8> sprite = memory[sprite_addr++];
-                auto row = (y+i) % CH8_SCREEN_HEIGHT;
-                for(auto j = 0; j < 8; j++) {
-                    if(sprite[7-j]) {
-                        auto column = (x+j) % CH8_SCREEN_WIDTH;
-                        auto position = column + row * CH8_SCREEN_WIDTH;
-                        if(framebuffer[position] == CH8_SCREEN_COLOR) {
-                            framebuffer[position] = CH8_SCREEN_COLOR_2;
-                            registers[CH8_REG_SIZE-1] = true;
-                        } else {
-                            framebuffer[position] = CH8_SCREEN_COLOR;
-                        }
-                    }
-                }
-            }
-            fb_modified = true;
-            break;
-        }
-        case 0xE: {
-            switch(value8) {
-                case 0x9E: {
-                    if(keyboard[registers[reg_x]]) {
-                        increment_pc();
-                    }
-                    break;
-                }
-                case 0xA1: {
-                    if(!keyboard[registers[reg_x]]) {
-                        increment_pc();
-                    }
-                    break;
-                }
-            }
-            break;
-        }
-        case 0xF: {
-            switch(value8) {
-                case 0x07: {
-                    registers[reg_x] = delay_timer;
-                    break;
-                }
+        case 0xF:
+            switch(byte) {
+                case 0x07:
+                    reg[x] = delay_timer; break;
                 case 0x0A: {
-                    bool key_pressed = false;
+                    bool keep_waiting = true;
                     for(size_t i = 0; i < keyboard.size(); i++) {
                         if(keyboard[i]) {
-                            key_pressed = true;
-                            registers[reg_x] = i;
+                            keep_waiting = false;
+                            reg[x] = i;
                             break;
                         }
                     }
-                    if(!key_pressed) {
-                        pc -= CH8_PC_STEP;
-                    }
+                    if(keep_waiting) pc -= CH8_PC_STEP;
                     break;
                 }
-                case 0x15: {
-                    delay_timer = registers[reg_x];
-                    break;
-                }
-                case 0x18: {
-                    sound_timer = registers[reg_x];
-                    break;
-                }
-                case 0x1E: {
-                    index_register += registers[reg_x];
-                    break;
-                }
+                case 0x15: 
+                    delay_timer = reg[x]; break;
+                case 0x18:
+                    sound_timer = reg[x]; break;
+                case 0x1E:
+                    index_register += reg[x]; break;
                 case 0x29: {
-                    auto location = registers[reg_x] & 0xF;
-                    index_register = memory[CH8_FONT_ADDR + location];
+                    auto i = reg[x] & 0xF;
+                    index_register = memory[CH8_FONT_ADDR+i];
                     break;
                 }
                 case 0x33: {
-                    uint8_t num = registers[reg_x];
+                    uint8_t num = reg[x];
                     for(auto i = 2; i >= 0; i--) {
                         memory[index_register+i] = num % 10;
                         num = num / 10;
                     }
                     break;
                 }
-                case 0x55: {
-                    for(auto i = 0; i <= reg_x; i++) {
-                        memory[index_register+i] = registers[i];
+                case 0x55:
+                    for(auto i = 0; i <= x; i++) {
+                        memory[index_register+i] = reg[i];
                     }
                     break;
-                }
-                case 0x65: {
-                    for(auto i = 0; i <= reg_x; i++) {
-                        registers[i] = memory[index_register+i];
+                case 0x65:
+                    for(auto i = 0; i <= x; i++) {
+                        reg[i] = memory[index_register+i];
                     }
                     break;
-                }
             }
-            break;
-        }
-        default: {
-            break;
-        }
+        break;
     }
 }
+
