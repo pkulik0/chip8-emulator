@@ -1,9 +1,12 @@
 #include <iostream>
 #include <thread>
 #include <fstream>
+#include <chrono>
 
 #include "include/launcher.hxx"
 #include "include/chip8.hxx"
+
+using namespace std::chrono;
 
 Launcher::Launcher(const std::string& title, const int& width, const int& height) : window{}, renderer{}, texture{}, is_running{false} {
     if(SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -57,6 +60,7 @@ void Launcher::run(const std::string& filename) {
     is_running = true;
 
     while(is_running) {
+        auto start = high_resolution_clock::now();
         chip8->step();
 
         while(SDL_PollEvent(&event)) {
@@ -88,6 +92,8 @@ void Launcher::run(const std::string& filename) {
             SDL_RenderPresent(renderer);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        auto end = high_resolution_clock::now();
+        auto cycle_time = duration_cast<std::chrono::nanoseconds>(end - start);
+        std::this_thread::sleep_for(nanoseconds(CH8_CYCLE_TIME) - cycle_time);
     }
 }

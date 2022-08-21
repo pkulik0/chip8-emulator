@@ -1,9 +1,6 @@
-#include <iostream>
-#include <cstdio>
 #include <thread>
 #include <chrono>
-
-#include <SDL2/SDL_keyboard.h>
+#include <bitset>
 
 #include "include/chip8.hxx"
 #include "include/constants.hxx"
@@ -13,10 +10,6 @@ Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}
     for(size_t i = 0; i < font.size(); i++) {
         memory[CH8_FONT_ADDR+i] = font[i];
     }
-}
-
-inline void Chip8::increment_pc() {
-    pc += CH8_PC_STEP;
 }
 
 void Chip8::load(const std::vector<uint8_t>& bytecode) {
@@ -51,6 +44,10 @@ void Chip8::set_key(const uint8_t& scancode, const bool& status) {
 
 inline uint16_t Chip8::fetch_instruction() {
     return (memory[pc] << 8) | memory[pc+1];
+}
+
+inline void Chip8::increment_pc() {
+    pc += CH8_PC_STEP;
 }
 
 bool Chip8::step() {
@@ -196,10 +193,10 @@ void Chip8::decode_instruction(const uint16_t& instruction) {
 
             for(auto i = 0; i < height; i++) {
                 std::bitset<8> sprite = memory[sprite_addr++];
-                auto row = (y+i) % 32;
+                auto row = (y+i) % CH8_SCREEN_HEIGHT;
                 for(auto j = 0; j < 8; j++) {
                     if(sprite[7-j]) {
-                        auto column = (x+j) % 64;
+                        auto column = (x+j) % CH8_SCREEN_WIDTH;
                         auto position = column + row * CH8_SCREEN_WIDTH;
                         if(framebuffer[position] == CH8_SCREEN_COLOR) {
                             framebuffer[position] = CH8_SCREEN_COLOR_2;
