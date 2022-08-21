@@ -242,7 +242,7 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     }
                     break;
             }
-        break;
+            break;
     }
 }
 
