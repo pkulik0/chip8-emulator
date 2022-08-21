@@ -1,5 +1,27 @@
 #pragma once
 
+#include <unordered_map>
+#include <array>
+
+const std::unordered_map<uint8_t, uint8_t> keymap {
+        {30, 0x1}, // 1
+        {31, 0x2}, // 2
+        {32, 0x3}, // 3
+        {33, 0xC}, // 4
+        {20, 0x4}, // Q
+        {26, 0x5}, // W
+        {8,  0x6}, // E
+        {21, 0xD}, // R
+        {4,  0x7}, // A
+        {22, 0x8}, // S
+        {7,  0x9}, // D
+        {9,  0xE}, // F
+        {29, 0xA}, // Z
+        {27, 0x0}, // X
+        {6,  0xB}, // C
+        {25, 0xF}  // V
+};
+
 constexpr std::array<uint8_t, 80> font {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1

@@ -1,88 +1,29 @@
 #include <iostream>
 #include <cstdio>
-
 #include <thread>
 #include <chrono>
 
 #include <SDL2/SDL_keyboard.h>
 
-#include "../include/chip8.hxx"
-#include "../include/font.hxx"
+#include "include/chip8.hxx"
+#include "include/constants.hxx"
 
-Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}, sound_timer{}, framebuffer{}, pc{}, keyboard{}, fb_modified{true} {
+Chip8::Chip8() : index_register{}, registers{}, memory{}, stack{}, delay_timer{}, sound_timer{}, framebuffer{}, fb_modified{true}, pc{}, keyboard{} {
     srand(time(0));
     for(size_t i = 0; i < font.size(); i++) {
         memory[CH8_FONT_ADDR+i] = font[i];
     }
-    
-    memory[0x1FF] = 5; // TEST SUITE VALUE
-}
-
-Chip8::~Chip8() {}
-
-uint8_t Chip8::sdl_scancode_to_key(uint16_t scancode) {
-    switch(scancode) {
-        case SDL_SCANCODE_1: {
-            return 0x1;
-        }
-        case SDL_SCANCODE_2: {
-            return 0x2;
-        }
-        case SDL_SCANCODE_3: {
-            return 0x3;
-        }
-        case SDL_SCANCODE_4: {
-            return 0xC;
-        }
-        case SDL_SCANCODE_Q: {
-            return 0x4;
-        }
-        case SDL_SCANCODE_W: {
-            return 0x5;
-        }
-        case SDL_SCANCODE_E: {
-            return 0x6;
-        }
-        case SDL_SCANCODE_R: {
-            return 0xD;
-        }
-        case SDL_SCANCODE_A: {
-            return 0x7;
-        }
-        case SDL_SCANCODE_S: {
-            return 0x8;
-        }
-        case SDL_SCANCODE_D: {
-            return 0x9;
-        }
-        case SDL_SCANCODE_F: {
-            return 0xE;
-        }
-        case SDL_SCANCODE_Z: {
-            return 0xA;
-        }
-        case SDL_SCANCODE_X: {
-            return 0x0;
-        }
-        case SDL_SCANCODE_C: {
-            return 0xB;
-        }
-        case SDL_SCANCODE_V: {
-            return 0xF;
-        }
-    }
-    return 0xFF;
 }
 
 inline void Chip8::increment_pc() {
     pc += CH8_PC_STEP;
 }
 
-void Chip8::load(std::vector<uint8_t>& program) {
-    pc = CH8_PC_START;
+void Chip8::load(const std::vector<uint8_t>& bytecode) {
+    pc = CH8_PROGRAM_ADDR;
 
-    for(size_t i = 0; i < program.size(); i++) {
-        memory[CH8_PC_START+i] = program[i];
+    for(size_t i = 0; i < bytecode.size() && i < CH8_PROGRAM_SIZE; i++) {
+        memory[pc+i] = bytecode[i];
     }
 }
 
@@ -93,14 +34,22 @@ void Chip8::clear_fb() {
 }
 
 void* Chip8::get_fb() {
+    if(!fb_modified) {
+        return nullptr;
+    }
+
+    fb_modified = false;
     return &framebuffer.__elems_;
 }
 
-void Chip8::set_key(uint8_t key, bool status) {
-    keyboard[key] = status;
+void Chip8::set_key(const uint8_t& scancode, const bool& status) {
+    auto key = keymap.find(scancode);
+    if(key != keymap.end()) {
+        keyboard[key->second] = status;
+    }
 }
 
-uint16_t Chip8::fetch_instruction() {
+inline uint16_t Chip8::fetch_instruction() {
     return (memory[pc] << 8) | memory[pc+1];
 }
 
@@ -108,23 +57,10 @@ bool Chip8::step() {
     auto ins = fetch_instruction();
     increment_pc();
     decode_instruction(ins);
-    return pc >= CH8_MEMORY_SIZE;
+    return pc < CH8_MEMORY_SIZE;
 }
 
-void Chip8::run() {
-    std::cout << "Chip8 started!" << std::endl;
-
-    while(pc < CH8_MEMORY_SIZE) {
-        step();
-        std::this_thread::sleep_for(std::chrono::nanoseconds(1'000'000'000 / 500));
-    }
-}
-
-void Chip8::pause() {
-
-}
-
-void Chip8::decode_instruction(uint16_t& instruction) {
+void Chip8::decode_instruction(const uint16_t& instruction) {
     uint8_t instruction_type = instruction >> 12;
 
     uint8_t reg_x = (instruction >> 8) & 0xF;
@@ -202,33 +138,33 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                 }
                 case 0x4: {
                     uint16_t result = registers[reg_x] + registers[reg_y];
-                    bool flag = result > 0xFF;
+                    bool flag = result > 0xFF; // check for overflow
                     registers[reg_x] = result;
-                    registers[CH8_FLAG_REG] = flag;
+                    registers[CH8_REG_SIZE-1] = flag;
                     break;
                 }
                 case 0x5: {
                     bool flag = registers[reg_x] >= registers[reg_y];
                     registers[reg_x] -= registers[reg_y];
-                    registers[CH8_FLAG_REG] = flag;
+                    registers[CH8_REG_SIZE-1] = flag;
                     break;
                 }
                 case 0x7: {
                     bool flag =  registers[reg_y] >= registers[reg_x];
                     registers[reg_x] = registers[reg_y] - registers[reg_x];
-                    registers[CH8_FLAG_REG] = flag;
+                    registers[CH8_REG_SIZE-1] = flag;
                     break;
                 }
                 case 0x6: {
                     bool flag = registers[reg_y] & 1;
                     registers[reg_x] = registers[reg_y] >> 1;
-                    registers[CH8_FLAG_REG] = flag;
+                    registers[CH8_REG_SIZE-1] = flag;
                     break;
                 }
                 case 0xE: {
                     bool flag = registers[reg_x] >> 7;
                     registers[reg_x] = registers[reg_x] << 1;
-                    registers[CH8_FLAG_REG] = flag;
+                    registers[CH8_REG_SIZE-1] = flag;
                     break;
                 }
             }
@@ -253,8 +189,6 @@ void Chip8::decode_instruction(uint16_t& instruction) {
             break;
         }
         case 0xD: {
-            fb_modified = true;
-
             uint8_t x = registers[reg_x];
             uint8_t y = registers[reg_y];
             uint8_t height = value4;
@@ -269,13 +203,14 @@ void Chip8::decode_instruction(uint16_t& instruction) {
                         auto position = column + row * CH8_SCREEN_WIDTH;
                         if(framebuffer[position] == CH8_SCREEN_COLOR) {
                             framebuffer[position] = CH8_SCREEN_COLOR_2;
-                            registers[CH8_FLAG_REG] = true;
+                            registers[CH8_REG_SIZE-1] = true;
                         } else {
                             framebuffer[position] = CH8_SCREEN_COLOR;
                         }
                     }
                 }
             }
+            fb_modified = true;
             break;
         }
         case 0xE: {
