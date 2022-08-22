@@ -1,6 +1,7 @@
 #include <thread>
 #include <chrono>
 #include <bitset>
+#include <iostream>
 
 #include "../include/chip8.hxx"
 
@@ -11,7 +12,7 @@ const std::unordered_map<uint8_t, uint8_t> Chip8::keymap {
         {29, 0xA}, {27, 0x0}, {6,  0xB}, {25, 0xF}  // Z X C V
 };
 
-Chip8::Chip8() : index_register{}, reg{}, memory{}, stack{}, delay_timer{}, sound_timer{}, timer_count{}, framebuffer{}, fb_modified{true}, pc{}, keyboard{}, is_beeping{} {
+Chip8::Chip8() : index_register{}, reg{}, memory{}, stack{}, delay_timer{}, sound_timer{}, timer_count{}, framebuffer{}, fb_lock{}, fb_modified{true}, pc{}, keyboard{}, is_beeping{} {
     for(size_t i = 0; i < font.size(); i++) {
         memory[CH8_FONT_ADDR+i] = font[i];
     }
@@ -26,6 +27,8 @@ void Chip8::load(const std::vector<uint8_t>& bytecode) {
 }
 
 void Chip8::clear_fb() {
+    std::lock_guard<std::mutex> lock{fb_lock};
+    
     for(size_t addr = 0; addr < framebuffer.size(); addr++) {
         framebuffer[addr] = CH8_SCREEN_COLOR_OFF;
     }
@@ -33,6 +36,7 @@ void Chip8::clear_fb() {
 
 void* Chip8::get_fb() {
     if(!fb_modified) return nullptr;
+    std::lock_guard<std::mutex> lock{fb_lock};
 
     fb_modified = false;
     return &framebuffer.__elems_;
@@ -67,21 +71,40 @@ bool Chip8::step() {
     uint16_t ins = fetch_instruction();
     increment_pc();
     decode_instruction(ins);
-    
+
     return pc < CH8_MEMORY_SIZE;
 }
 
+std::thread Chip8::run() {
+    return std::thread{&Chip8::start_main_loop, this};
+}
+
+void Chip8::start_main_loop() {
+    bool keep_going = true;
+    while(keep_going) {
+        using namespace std::chrono;
+    
+        auto start = high_resolution_clock::now();
+        keep_going = step();
+        auto end = high_resolution_clock::now();
+            
+        auto cycle_time = duration_cast<std::chrono::nanoseconds>(end - start);
+        std::this_thread::sleep_for(nanoseconds(CH8_CYCLE_TIME) - cycle_time);
+    }
+}
+
 void Chip8::draw_sprite(const uint8_t x, const uint8_t y, const uint8_t height, const uint16_t sprite_addr) {
+    std::lock_guard<std::mutex> lock{fb_lock};
+
     for(auto i = 0; i < height; i++) {
-        uint8_t row = (y+i) % CH8_SCREEN_HEIGHT;
-        // Iterate over individual bits in the sprite, starting from LE
         std::bitset<8> sprite = memory[sprite_addr+i];
+        uint8_t row = (y+i) % CH8_SCREEN_HEIGHT;
+        
         for(auto j = 0; j < 8; j++) {
             if(sprite[7-j]) {
                 uint8_t column = (x+j) % CH8_SCREEN_WIDTH;
                 uint16_t position = column + row * CH8_SCREEN_WIDTH;
 
-                // Flip the pixel's color, set the flag register if the pixel has been deactivated.
                 if(framebuffer[position] == CH8_SCREEN_COLOR_ON) {
                     framebuffer[position] = CH8_SCREEN_COLOR_OFF;
                     reg[CH8_FLAG] = true;
@@ -91,6 +114,7 @@ void Chip8::draw_sprite(const uint8_t x, const uint8_t y, const uint8_t height, 
             }
         }
      }
+
     fb_modified = true;
 }
 

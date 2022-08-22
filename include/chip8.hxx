@@ -2,6 +2,7 @@
 
 #include <array>
 #include <stack>
+#include <mutex>
 #include <vector>
 #include <unordered_map>
 
@@ -41,6 +42,7 @@ private:
     void handle_timers();
 
     std::array<uint8_t, CH8_SCREEN_SIZE> framebuffer;
+    std::mutex fb_lock;
     bool fb_modified;
 
     void clear_fb();
@@ -51,6 +53,7 @@ private:
     std::array<bool, 16> keyboard;
     static const std::unordered_map<uint8_t, uint8_t> keymap;
     
+    void start_main_loop();
     uint16_t fetch_instruction();
     void decode_instruction(const uint16_t ins);
     
@@ -83,4 +86,5 @@ public:
     void set_key(const uint8_t scancode, const bool status);
     void* get_fb();
     bool step();
+    std::thread run();
 };

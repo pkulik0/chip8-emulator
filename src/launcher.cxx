@@ -6,8 +6,6 @@
 #include "../include/launcher.hxx"
 #include "../include/chip8.hxx"
 
-using namespace std::chrono;
-
 Launcher::Launcher(const std::string_view& title, const int width, const int height) : window{}, renderer{}, texture{}, is_running{false} {
     if(SDL_Init(SDL_INIT_VIDEO)) throw SDL_GetError();
 
@@ -45,6 +43,9 @@ void Launcher::run(const std::string_view& filename) {
     Chip8* chip8 = new Chip8;
     chip8->load(program);
 
+    std::thread ch8_thread = chip8->run();
+    ch8_thread.detach();
+
     SDL_Event event;
     is_running = true;
 
@@ -66,15 +67,7 @@ void Launcher::run(const std::string_view& filename) {
             }
         }
 
-        auto start = high_resolution_clock::now();
-        chip8->step();
-        auto end = high_resolution_clock::now();
-        
-        auto cycle_time = duration_cast<std::chrono::nanoseconds>(end - start);
-        std::this_thread::sleep_for(nanoseconds(CH8_CYCLE_TIME) - cycle_time);
-
-        void* fb = chip8->get_fb();
-        if(fb) {
+        if(void* fb = chip8->get_fb()) {
             auto c = CH8_SCREEN_COLOR_OFF;
             SDL_SetRenderDrawColor(renderer, c, c, c, 0xFF);
             SDL_RenderClear(renderer);
@@ -84,5 +77,6 @@ void Launcher::run(const std::string_view& filename) {
 
             SDL_RenderPresent(renderer);
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 }
