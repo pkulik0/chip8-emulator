@@ -105,12 +105,8 @@ void Chip8::draw_sprite(const uint8_t x, const uint8_t y, const uint8_t height, 
                 uint8_t column = (x+j) % CH8_SCREEN_WIDTH;
                 uint16_t position = column + row * CH8_SCREEN_WIDTH;
 
-                if(framebuffer[position] == CH8_SCREEN_COLOR_ON) {
-                    framebuffer[position] = CH8_SCREEN_COLOR_OFF;
-                    reg[CH8_FLAG] = true;
-                } else {
-                    framebuffer[position] = CH8_SCREEN_COLOR_ON;
-                }
+                reg[CH8_FLAG] = framebuffer[position] == CH8_SCREEN_COLOR_ON;
+                framebuffer[position] = reg[CH8_FLAG] ? CH8_SCREEN_COLOR_OFF : CH8_SCREEN_COLOR_ON;
             }
         }
      }
