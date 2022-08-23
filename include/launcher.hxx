@@ -11,12 +11,10 @@ private:
     SDL_Renderer* renderer;
     SDL_Texture* texture;
 
-    bool is_running;
-
-    std::vector<uint8_t> read_binary(const std::string_view& filename);
+    std::vector<uint8_t> read_binary(std::string_view filename) const;
 public:
-    Launcher(const std::string_view& title, const int width, const int height);
+    Launcher(std::string_view title, const int width, const int height);
     ~Launcher();
 
-    void run(const std::string_view& filename);
+    void run(std::string_view filename) const;
 };

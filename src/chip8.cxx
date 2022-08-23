@@ -81,13 +81,13 @@ std::thread Chip8::run() {
 
 void Chip8::start_main_loop() {
     bool is_eof = false;
+
     while(!is_eof) {
         using namespace std::chrono;
-    
         auto start = high_resolution_clock::now();
         is_eof = step();
         auto end = high_resolution_clock::now();
-            
+
         auto cycle_time = duration_cast<std::chrono::nanoseconds>(end - start);
         std::this_thread::sleep_for(nanoseconds(CH8_CYCLE_TIME) - cycle_time);
     }
