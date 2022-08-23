@@ -77,6 +77,6 @@ void Launcher::run(const std::string_view& filename) {
 
             SDL_RenderPresent(renderer);
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        SDL_Delay(16);
     }
 }

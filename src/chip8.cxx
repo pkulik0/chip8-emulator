@@ -28,7 +28,7 @@ void Chip8::load(const std::vector<uint8_t>& bytecode) {
 
 void Chip8::clear_fb() {
     std::lock_guard<std::mutex> lock{fb_lock};
-    
+
     for(size_t addr = 0; addr < framebuffer.size(); addr++) {
         framebuffer[addr] = CH8_SCREEN_COLOR_OFF;
     }
@@ -72,7 +72,7 @@ bool Chip8::step() {
     increment_pc();
     decode_instruction(ins);
 
-    return pc < CH8_MEMORY_SIZE;
+    return pc >= CH8_MEMORY_SIZE;
 }
 
 std::thread Chip8::run() {
@@ -80,12 +80,12 @@ std::thread Chip8::run() {
 }
 
 void Chip8::start_main_loop() {
-    bool keep_going = true;
-    while(keep_going) {
+    bool is_eof = false;
+    while(!is_eof) {
         using namespace std::chrono;
     
         auto start = high_resolution_clock::now();
-        keep_going = step();
+        is_eof = step();
         auto end = high_resolution_clock::now();
             
         auto cycle_time = duration_cast<std::chrono::nanoseconds>(end - start);

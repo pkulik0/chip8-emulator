@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #define CH8_SCREEN_COLOR_ON 0xFF
-#define CH8_SCREEN_COLOR_OFF 0x00;
+#define CH8_SCREEN_COLOR_OFF 0x00
 
 #define CH8_SCREEN_WIDTH 64
 #define CH8_SCREEN_HEIGHT 32
