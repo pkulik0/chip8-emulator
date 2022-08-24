@@ -11,5 +11,7 @@ set(CMAKE_BUILD_TYPE Release)
 include_directories(/opt/homebrew/include)
 link_directories(/opt/homebrew/lib)
 
-add_executable(emulator src/main.cxx src/launcher.cxx src/chip8.cxx)
+file(GLOB SOURCES src/*.cxx)
+
+add_executable(emulator ${SOURCES})
 target_link_libraries(emulator SDL2)
