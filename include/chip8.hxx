@@ -37,9 +37,7 @@ private:
 
     uint8_t delay_timer;
     uint8_t sound_timer;
-    size_t timer_count;
-
-    void handle_timers();
+    std::mutex timer_lock;
 
     std::array<uint8_t, CH8_SCREEN_SIZE> framebuffer;
     std::mutex fb_lock;
@@ -80,10 +78,9 @@ private:
 public:
     Chip8();
 
-    bool is_beeping;
-
     void load(const std::vector<uint8_t>& program);
     void set_key(const uint8_t scancode, const bool status);
+    bool handle_timers();
     void* get_fb();
     bool step();
     std::thread run();

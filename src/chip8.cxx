@@ -12,7 +12,7 @@ const std::unordered_map<uint8_t, uint8_t> Chip8::keymap {
         {29, 0xA}, {27, 0x0}, {6,  0xB}, {25, 0xF}  // Z X C V
 };
 
-Chip8::Chip8() : index_register{}, reg{}, memory{}, stack{}, delay_timer{}, sound_timer{}, timer_count{}, framebuffer{}, fb_lock{}, fb_modified{true}, pc{}, keyboard{}, is_beeping{} {
+Chip8::Chip8() : index_register{}, reg{}, memory{}, stack{}, delay_timer{}, sound_timer{}, timer_lock{}, framebuffer{}, fb_lock{}, fb_modified{true}, pc{}, keyboard{} {
     for(size_t i = 0; i < font.size(); i++) {
         memory[CH8_FONT_ADDR+i] = font[i];
     }
@@ -57,17 +57,17 @@ inline void Chip8::increment_pc() {
     pc += CH8_PC_STEP;
 }
 
-void Chip8::handle_timers() {
-    if(timer_count++ == CH8_CPU_FREQUENCY/CH8_TIMER_FREQUENCY) {    
-        if(sound_timer > 0) is_beeping = --sound_timer > 0;
-        if(delay_timer > 0) delay_timer--;
-        timer_count = 0; 
-    }
+bool Chip8::handle_timers() {
+    std::lock_guard<std::mutex> lock{timer_lock};
+    bool is_beeping{};
+
+    if(sound_timer > 0) is_beeping = --sound_timer > 0;
+    if(delay_timer > 0) delay_timer--;
+
+    return is_beeping;
 }
 
 bool Chip8::step() {
-    handle_timers();
-
     uint16_t ins = fetch_instruction();
     increment_pc();
     decode_instruction(ins);
@@ -179,7 +179,7 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     break;
                 }
                 case 0x7: {
-                    bool flag =  reg[y] >= reg[x];
+                    bool flag = reg[y] >= reg[x];
                     reg[x] = reg[y] - reg[x];
                     reg[CH8_FLAG] = flag;
                     break;
@@ -232,10 +232,16 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     if(keep_waiting) pc -= CH8_PC_STEP;
                     break;
                 }
-                case 0x15: 
-                    delay_timer = reg[x]; break;
-                case 0x18:
-                    sound_timer = reg[x]; break;
+                case 0x15: {
+                    std::lock_guard<std::mutex> lock{timer_lock};
+                    delay_timer = reg[x]; 
+                    break;
+                }
+                case 0x18: {
+                    std::lock_guard<std::mutex> lock{timer_lock};
+                    sound_timer = reg[x]; 
+                    break;
+                }
                 case 0x1E:
                     index_register += reg[x]; break;
                 case 0x29: {
@@ -252,14 +258,12 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     break;
                 }
                 case 0x55:
-                    for(auto i = 0; i <= x; i++) {
+                    for(auto i = 0; i <= x; i++)
                         memory[index_register+i] = reg[i];
-                    }
                     break;
                 case 0x65:
-                    for(auto i = 0; i <= x; i++) {
+                    for(auto i = 0; i <= x; i++)
                         reg[i] = memory[index_register+i];
-                    }
                     break;
             }
             break;

@@ -69,6 +69,8 @@ void Launcher::run(std::string_view filename) const {
             SDL_RenderPresent(renderer);
         }
 
+        chip8.handle_timers();
+
         SDL_Delay(1000 / 60);
     }
 }
