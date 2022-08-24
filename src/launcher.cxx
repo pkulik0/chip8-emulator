@@ -40,11 +40,10 @@ std::vector<uint8_t> Launcher::read_binary(std::string_view filename) const {
 void Launcher::run(std::string_view filename) const {
     std::vector<uint8_t> program = read_binary(filename);
 
-    Chip8* chip8 = new Chip8;
-    chip8->load(program);
+    Chip8 chip8;
+    chip8.load(program);
 
-    std::thread ch8_thread = chip8->run();
-    ch8_thread.detach();
+    std::thread ch8_thread = chip8.run();
 
     SDL_Event event;
     bool is_running = true;
@@ -56,15 +55,15 @@ void Launcher::run(std::string_view filename) const {
                     is_running = false;
                     break;
                 case SDL_KEYDOWN:
-                    chip8->set_key(event.key.keysym.scancode, true);
+                    chip8.set_key(event.key.keysym.scancode, true);
                     break;
                 case SDL_KEYUP:
-                    chip8->set_key(event.key.keysym.scancode, false);
+                    chip8.set_key(event.key.keysym.scancode, false);
                     break;
             }
         }
 
-        if(void* fb = chip8->get_fb()) {
+        if(void* fb = chip8.get_fb()) {
             SDL_UpdateTexture(texture, nullptr, fb, CH8_SCREEN_WIDTH);
             SDL_RenderCopy(renderer, texture, nullptr, nullptr);
             SDL_RenderPresent(renderer);
