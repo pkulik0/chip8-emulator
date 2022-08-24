@@ -40,7 +40,7 @@ std::vector<uint8_t> Launcher::read_binary(std::string_view filename) const {
 void Launcher::run(std::string_view filename) const {
     std::vector<uint8_t> program = read_binary(filename);
 
-    Chip8 chip8;
+    Chip8 chip8{};
     chip8.load(program);
 
     std::thread ch8_thread = chip8.run();
