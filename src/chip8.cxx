@@ -125,7 +125,7 @@ void Chip8::decode_instruction(const uint16_t ins) {
 
     // 0x0001 - 1 byte operand OR secondary instruction type
     uint8_t  nibble = ins & 0xF;
-    // 0x0110 - 2 byte operand OR secondary instruction type
+    // 0x0011 - 2 byte operand OR secondary instruction type
     uint8_t  byte   = ins & 0xFF;
     // 0x0111 - 3 byte operand
     uint16_t addr   = ins & 0xFFF;
