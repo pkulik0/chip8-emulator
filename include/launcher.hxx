@@ -11,7 +11,7 @@ private:
     SDL_Renderer* renderer;
     SDL_Texture* texture;
 
-    std::vector<uint8_t> read_binary(std::string_view filename) const;
+    static std::vector<uint8_t> read_binary(std::string_view filename) ;
 public:
     Launcher(std::string_view title, const int width, const int height);
     ~Launcher();

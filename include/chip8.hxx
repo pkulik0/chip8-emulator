@@ -14,7 +14,6 @@
 #define CH8_SCREEN_SIZE CH8_SCREEN_WIDTH * CH8_SCREEN_HEIGHT
 
 #define CH8_CPU_FREQUENCY 500
-#define CH8_TIMER_FREQUENCY 60
 #define CH8_CYCLE_TIME 1'000'000'000 / CH8_CPU_FREQUENCY
 
 #define CH8_PC_STEP 2
@@ -53,9 +52,9 @@ private:
     
     void start_main_loop();
     uint16_t fetch_instruction();
-    void decode_instruction(const uint16_t ins);
+    void decode_instruction(uint16_t ins);
     
-    void draw_sprite(const uint8_t x, const uint8_t y, const uint8_t height, const uint16_t sprite_addr);
+    void draw_sprite(uint8_t x, uint8_t y, uint8_t height, uint16_t sprite_addr);
 
     static constexpr std::array<uint8_t, 80> font {
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -79,7 +78,7 @@ public:
     Chip8();
 
     void load(const std::vector<uint8_t>& program);
-    void set_key(const uint8_t scancode, const bool status);
+    void set_key(uint8_t scancode, bool status);
     bool handle_timers();
     void* get_fb();
     bool step();

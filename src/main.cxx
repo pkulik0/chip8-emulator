@@ -3,17 +3,18 @@
 #include "../include/launcher.hxx"
 
 int main(int argc, char** argv) {
-    srand(time(0));
-
     if(argc < 2) {
-        std::cout << "Usage:\n";
-        std::cout << argv[0] << " <path_to_image>\n" << std::endl;
-        return 1;
+        std::cout << "Usage:\n" <<  argv[0] << " <path_to_image>\n" << std::endl;
+        return EXIT_FAILURE;
     }
     std::string filename{argv[1]};
 
-    Launcher launcher{"chip8-emulator", 640, 320};
-    launcher.run(filename);
+    try {
+        Launcher launcher{"chip8-emulator", 640, 320};
+        launcher.run(filename);
+    } catch(std::runtime_error& error) {
+        std::cout << "Something went wrong!\n" << error.what() << std::endl;
+    }
 
-    return 0;
+    return EXIT_SUCCESS;
 }
