@@ -3,8 +3,8 @@
 #include <fstream>
 #include <chrono>
 
-#include "../include/launcher.hxx"
-#include "../include/chip8.hxx"
+#include "launcher.hpp"
+#include "chip8.hpp"
 
 Launcher::Launcher(std::string_view title, const int width, const int height) : window{}, renderer{}, texture{} {
     if(SDL_Init(SDL_INIT_VIDEO)) throw SDL_GetError();

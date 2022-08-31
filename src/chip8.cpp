@@ -3,7 +3,7 @@
 #include <bitset>
 #include <iostream>
 
-#include "../include/chip8.hxx"
+#include "chip8.hpp"
 
 const std::unordered_map<uint8_t, uint8_t> Chip8::keymap {
         {30, 0x1}, {31, 0x2}, {32, 0x3}, {33, 0xC}, // 1 2 3 4
