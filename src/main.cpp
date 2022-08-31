@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "../include/launcher.hxx"
+#include "launcher.hpp"
 
 int main(int argc, char** argv) {
     if(argc < 2) {
