@@ -7,18 +7,18 @@
 #include "chip8.hpp"
 
 Launcher::Launcher(std::string_view title, const int width, const int height) : window{}, renderer{}, texture{} {
-    if(SDL_Init(SDL_INIT_VIDEO)) throw SDL_GetError();
+    if(SDL_Init(SDL_INIT_VIDEO)) throw std::runtime_error(SDL_GetError());
 
     window = SDL_CreateWindow(title.data(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
-    if(!window) throw SDL_GetError();
+    if(!window) throw std::runtime_error(SDL_GetError());
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if(!renderer) throw SDL_GetError();
+    if(!renderer) throw std::runtime_error(SDL_GetError());
 
     SDL_RenderSetLogicalSize(renderer, CH8_SCREEN_WIDTH, CH8_SCREEN_HEIGHT);
 
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB332, SDL_TEXTUREACCESS_TARGET, CH8_SCREEN_WIDTH, CH8_SCREEN_HEIGHT);
-    if(!texture) throw SDL_GetError();
+    if(!texture) throw std::runtime_error(SDL_GetError());
 }
 
 Launcher::~Launcher() {
@@ -28,13 +28,12 @@ Launcher::~Launcher() {
     SDL_Quit();
 }
 
-std::vector<uint8_t> Launcher::read_binary(std::string_view filename) const {
-    std::ifstream ifstream{filename, std::ios::in | std::ios::binary};
-    if(!ifstream.good()) {
-        std::cout << "Binary could not be opened: " << filename << std::endl;
-        return {};
+std::vector<uint8_t> Launcher::read_binary(std::string_view filename) {
+    std::ifstream file{filename, std::ios::in | std::ios::binary};
+    if(!file.good()) {
+        throw std::runtime_error("The file could not be opened.");
     }
-    return std::vector<uint8_t>{std::istreambuf_iterator<char>(ifstream), {}};
+    return std::vector<uint8_t>{std::istreambuf_iterator<char>(file), {}};
 }
 
 void Launcher::run(std::string_view filename) const {

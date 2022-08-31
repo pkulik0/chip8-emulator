@@ -1,7 +1,6 @@
 #include <thread>
 #include <chrono>
 #include <bitset>
-#include <iostream>
 
 #include "chip8.hpp"
 
@@ -13,6 +12,7 @@ const std::unordered_map<uint8_t, uint8_t> Chip8::keymap {
 };
 
 Chip8::Chip8() : index_register{}, reg{}, memory{}, stack{}, delay_timer{}, sound_timer{}, timer_lock{}, framebuffer{}, fb_lock{}, fb_modified{true}, pc{}, keyboard{} {
+    srand(time(0));
     for(size_t i = 0; i < font.size(); i++) {
         memory[CH8_FONT_ADDR+i] = font[i];
     }
@@ -29,8 +29,8 @@ void Chip8::load(const std::vector<uint8_t>& bytecode) {
 void Chip8::clear_fb() {
     std::lock_guard<std::mutex> lock{fb_lock};
 
-    for(size_t addr = 0; addr < framebuffer.size(); addr++) {
-        framebuffer[addr] = CH8_SCREEN_COLOR_OFF;
+    for(uint8_t& addr : framebuffer) {
+        addr = CH8_SCREEN_COLOR_OFF;
     }
 }
 
@@ -139,6 +139,8 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     pc = stack.top();
                     stack.pop();
                     break;
+                default:
+                    throw std::runtime_error("Invalid Chip8 instruction encountered");
             }
             break;
         case 0x2:
@@ -196,6 +198,8 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     reg[CH8_FLAG] = flag;
                     break;
                 }
+                default:
+                    throw std::runtime_error("Invalid Chip8 instruction encountered");
             }
             break;
         case 0x9:
@@ -214,6 +218,8 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     if(keyboard[reg[x]]) increment_pc(); break;
                 case 0xA1:
                     if(!keyboard[reg[x]]) increment_pc(); break;
+                default:
+                    throw std::runtime_error("Invalid Chip8 instruction encountered");
             }
             break;
         case 0xF:
@@ -265,8 +271,12 @@ void Chip8::decode_instruction(const uint16_t ins) {
                     for(auto i = 0; i <= x; i++)
                         reg[i] = memory[index_register+i];
                     break;
+                default:
+                    throw std::runtime_error("Invalid Chip8 instruction encountered");
             }
             break;
+        default:
+            throw std::runtime_error("Invalid Chip8 instruction encountered");
     }
 }
 
