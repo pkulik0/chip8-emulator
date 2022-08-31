@@ -1,3 +1,7 @@
+//
+// Created by pkulik0 on 18/08/2022.
+//
+
 #pragma once
 
 #include <array>
